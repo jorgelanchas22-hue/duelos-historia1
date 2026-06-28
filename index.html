@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚔️ Duelos de Historia — Tema 6</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    select { appearance: auto; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+/* ══════════════════════════════════════════════
+   🔥 CONFIGURACIÓN FIREBASE — PON TUS DATOS
+   ══════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBHE_i1YKN1PYqoqhuknA_Mwem0utVZSw4",
+  authDomain: "practicar-gh-2eso.firebaseapp.com",
+  databaseURL: "https://practicar-gh-2eso-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "practicar-gh-2eso",
+  storageBucket: "practicar-gh-2eso.firebasestorage.app",
+  messagingSenderId: "194154392384",
+  appId: "1:194154392384:web:fc019b8e9f2f3c7c32e8a5"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const DB_PATH = "duelos-historia-tema6";
+
+/* ══════════════════════════════════════════════
+   📋 DATOS DE ALUMNOS
+   ══════════════════════════════════════════════ */
+const alumnos = {
+  "2A": [
+    "Amaro Porras, Bosco","Avilés Gallardo, Sofía","Batista Hidalgo, Rafael Josué",
+    "Carrillo Torvisco, Fernando","Casado De la Rosa, Daniela","Company Del Val, Quique",
+    "Cuevas Espí, Manuel","Ferrer Fernández, Ainara","García Casado, Ignacio",
+    "García Muñoz, Marcel","Garzón Delgado, Rubén","Gavilán Fonseca, Lola",
+    "González Brigidano, Elena","Herranz Fraile, Javier","Jiménez De Rueda, María Eugenia",
+    "López López, Emma","López Solis, Jorge","Marín Hermosilla, Manuel",
+    "Merro Muñoz, Alejo","Merro Muñoz, Felipe","Molina Pacheco, Lola",
+    "Morato Gómez, Alejandro","Navarro García, Claudia","Nieto Domínguez, Ignacio",
+    "Pina Fernández, Valeria","Puelles Moya, Pablo","Vázquez Sanabria, Irma Patricia",
+    "Vizcarra Oré, Gonzalo Miguel"
+  ],
+  "2B": [
+    "Acosta Martel, Kevin","Alcalá Marroquí, Patricia María","Campos García, Miriam",
+    "Campos Garrido, Sonia","Chekroun Murillo, Blanca","Díaz Suárez, Jesús",
+    "Domínguez Saavedra, Román","Donlon Schmidt, Michael Joel","Ferrer Ramírez, Mario",
+    "Gatón Bejar, Manuel","Gener Amador, María","González Gutiérrez, Manuel María",
+    "Manzano Galindo, Valentina","Marcano Domínguez, Marina","Martínez López, Luis",
+    "Maya Moreno, Marta","Medrano Cid, Nicolás","Mendieta Cruz, Jorge",
+    "Mula Pérez-Leiva, Bruno","Parrón Ruiz, David","Picazo Goroi, Rubyhn Macarena",
+    "Rastrollo Rodríguez, Miguel Ángel","Redondo Camacho, María Rocío","Sánchez Calvillo, Paula",
+    "Sánchez Ogazón, Eusebio Javier","Simoes Lara, Darío","Tirado Barranca, Lola",
+    "Vargas Romero, Blanca","Vera Muñoz-Reja, Beatriz","Vinces Sánchez, Carmen Noelia"
+  ],
+  "2C": [
+    "Balbontín Martínez, Bosco","Bellido Aranda, Claudia Salud","Boscán Trocónis, Abrahám José",
+    "Cabello Toscano, Ariadna Stefanía","De Labra Borrero, Breogan","Díaz Cruz, Álvaro",
+    "Gordillo Ramos Catalina, Paula","Jiménez Sánchez, Ángela Paola","Lamet Correa, Lola",
+    "Lerín Ramírez, Adrián","Macías Cano, Jesús","Marchena Jiménez, Jaime",
+    "Martín Delgado, Sergio","Martínez Álvarez de Cienfuegos, Carmen","Martínez Sánchez, Martín",
+    "Mateo Arispón, Ainhoa","Medina Rodríguez, Lucas","Méndez Delgado, Eric",
+    "Moreno Grove, Irene","Navarro Pérez, Alba","Olivencia Martínez, Pilar",
+    "Oribe Ruibérriz de Torres, Elena","Peralvo De la Rosa, Aitana","Ponce Liñán, Marcos",
+    "Ramos Martín, Julio","Soler Martínez, Manuel Antonio","Uncala Villarán, Julio",
+    "Valiente García, Alejandro","Zoido Maraver, Francisco Javier"
+  ]
+};
+
+const LABELS = { "2A": "2ºA", "2B": "2ºB", "2C": "2ºC" };
+const PUNTOS_MAX = { "2A": 81, "2B": 87, "2C": 84 };
+const CLAVE = "historia6";
+
+const short = (n) => n.split(',')[0];
+
+/* ══════════════════════════════════════════════
+   🧩 COMPONENTES AUXILIARES
+   ══════════════════════════════════════════════ */
+const Modal = ({ open, onClose, onConfirm, title, msg, danger }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 animate-fade-in">
+        <h3 className="text-lg font-bold mb-2">{title}</h3>
+        <p className="text-gray-600 text-sm mb-5">{msg}</p>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50">Cancelar</button>
+          <button onClick={() => { onConfirm(); onClose(); }}
+            className={`flex-1 py-2.5 rounded-xl text-white font-semibold ${danger ? 'bg-red-500 hover:bg-red-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Toast = ({ msg, visible }) => (
+  <div className={`fixed top-4 left-1/2 z-50 transform -translate-x-1/2 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+    <div className="bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium max-w-xs text-center">{msg}</div>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   🏠 APP PRINCIPAL
+   ══════════════════════════════════════════════ */
+function App() {
+  const { useState, useEffect, useCallback, useRef } = React;
+
+  const [cl, setCl] = useState("2A");
+  const [jug, setJug] = useState("");
+  const [riv, setRiv] = useState("");
+  const [puntos, setPuntos] = useState({});
+  const [historial, setHistorial] = useState([]);
+  const [toast, setToast] = useState({ msg: "", visible: false });
+  const [loading, setLoading] = useState(true);
+  const [vista, setVista] = useState("registro");
+  const [prof, setProf] = useState(false);
+  const [claveIn, setClaveIn] = useState("");
+  const [showLogin, setShowLogin] = useState(false);
+  const [modal, setModal] = useState({ open: false, title: "", msg: "", onConfirm: null, danger: false });
+  const [busqueda, setBusqueda] = useState("");
+  const [detalle, setDetalle] = useState(null);
+  const [connected, setConnected] = useState(true);
+
+  const toastTimer = useRef(null);
+
+  const notify = useCallback((msg) => {
+    setToast({ msg, visible: true });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+  }, []);
+
+  const openModal = (title, msg, onConfirm, danger = false) => {
+    setModal({ open: true, title, msg, onConfirm, danger });
+  };
+
+  /* ── FIREBASE: Listener en tiempo real ── */
+  useEffect(() => {
+    const ref = db.ref(DB_PATH);
+
+    // Escuchar datos en tiempo real
+    const unsubscribe = ref.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setPuntos(data.puntos || {});
+        // Firebase guarda arrays raros, asegurar que sea array
+        const hist = data.historial || [];
+        setHistorial(Array.isArray(hist) ? hist : Object.values(hist));
+      } else {
+        setPuntos({});
+        setHistorial([]);
+      }
+      setLoading(false);
+      setConnected(true);
+    }, (error) => {
+      console.error('Firebase error:', error);
+      setConnected(false);
+      setLoading(false);
+    });
+
+    // Detectar conexión/desconexión
+    const connRef = db.ref('.info/connected');
+    const connUnsub = connRef.on('value', (snap) => {
+      setConnected(snap.val() === true);
+    });
+
+    return () => {
+      ref.off('value', unsubscribe);
+      connRef.off('value', connUnsub);
+    };
+  }, []);
+
+  /* ── FIREBASE: Guardar ── */
+  const saveToFirebase = async (newPuntos, newHistorial) => {
+    try {
+      await db.ref(DB_PATH).set({
+        puntos: newPuntos,
+        historial: newHistorial.slice(0, 2000)
+      });
+      return true;
+    } catch (e) {
+      console.error('Error guardando en Firebase:', e);
+      notify("❌ Error al guardar. Revisa tu conexión.");
+      return false;
+    }
+  };
+
+  /* ── Lógica de juego ── */
+  const registrar = async (win) => {
+    if (!jug || !riv) { notify("⚠️ Selecciona nombre y rival"); return; }
+    if (jug === riv) { notify("⚠️ No puedes enfrentarte a ti mismo"); return; }
+    if (historial.some(h => h.clase === cl && h.jugador === jug && h.rival === riv)) {
+      notify("⚠️ Ya registraste este enfrentamiento"); return;
+    }
+
+    const k = cl + "_" + jug.replace(/[.#$/\[\]]/g, '_');
+    const pts = win ? 3 : 1;
+    const entry = {
+      id: Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+      fecha: new Date().toLocaleString('es-ES'),
+      clase: cl, jugador: jug, rival: riv, victoria: win, puntos: pts
+    };
+
+    const newPuntos = { ...puntos, [k]: (puntos[k] || 0) + pts };
+    const newHist = [entry, ...historial];
+
+    if (await saveToFirebase(newPuntos, newHist)) {
+      notify(win ? `🏆 ¡${short(jug)} gana! +3 pts` : `📝 ${short(jug)} +1 pt`);
+      setJug(""); setRiv("");
+    }
+  };
+
+  const getKey = (c, n) => c + "_" + n.replace(/[.#$/\[\]]/g, '_');
+  const getPts = (c, n) => puntos[getKey(c, n)] || 0;
+
+  const ranking = (c) => alumnos[c].map(n => {
+    const hist = historial.filter(h => h.clase === c && h.jugador === n);
+    return { nombre: n, puntos: getPts(c, n), wins: hist.filter(h => h.victoria).length, total: hist.length };
+  }).sort((a, b) => b.puntos - a.puntos || b.wins - a.wins);
+
+  const histClase = (c) => historial.filter(h => h.clase === c);
+
+  const pendientes = (c, j) => {
+    if (!j) return [];
+    return alumnos[c].filter(a => a !== j && !historial.some(h => h.clase === c && h.jugador === j && h.rival === a));
+  };
+
+  const getRes = (c, j, r) => historial.find(h => h.clase === c && h.jugador === j && h.rival === r);
+
+  const calcNota = (pts, c) => Math.min(10, Math.round((pts / PUNTOS_MAX[c]) * 100) / 10);
+
+  const colorNota = (n) => {
+    if (n >= 9) return 'text-emerald-700 bg-emerald-100';
+    if (n >= 7) return 'text-blue-700 bg-blue-100';
+    if (n >= 5) return 'text-amber-700 bg-amber-100';
+    return 'text-red-700 bg-red-100';
+  };
+
+  const calcStats = (c) => {
+    const h = histClase(c);
+    const maxPos = alumnos[c].length * (alumnos[c].length - 1);
+    return {
+      total: h.length,
+      wins: h.filter(x => x.victoria).length,
+      jugadores: new Set(h.map(x => x.jugador)).size,
+      progreso: Math.round((h.length / maxPos) * 100)
+    };
+  };
+
+  /* ── Acciones profesor ── */
+  const borrarReg = async (id) => {
+    const reg = historial.find(h => h.id === id);
+    if (!reg) return;
+    const k = getKey(reg.clase, reg.jugador);
+    const np = { ...puntos };
+    const nv = (np[k] || 0) - reg.puntos;
+    if (nv <= 0) delete np[k]; else np[k] = nv;
+    if (await saveToFirebase(np, historial.filter(h => h.id !== id)))
+      notify("🗑️ Registro eliminado");
+  };
+
+  const ajustarPts = async (c, nombre, npts) => {
+    const k = getKey(c, nombre);
+    const np = { ...puntos };
+    if (npts <= 0) delete np[k]; else np[k] = npts;
+    if (await saveToFirebase(np, historial)) notify(`✅ ${short(nombre)}: ${npts} pts`);
+  };
+
+  const recalc = async () => {
+    const np = {};
+    historial.forEach(h => { const k = getKey(h.clase, h.jugador); np[k] = (np[k] || 0) + h.puntos; });
+    if (await saveToFirebase(np, historial)) notify("✅ Recalculado");
+  };
+
+  const borrarClase = async (c) => {
+    const np = {};
+    Object.keys(puntos).forEach(k => { if (!k.startsWith(c + '_')) np[k] = puntos[k]; });
+    if (await saveToFirebase(np, historial.filter(h => h.clase !== c))) notify(`🗑️ ${LABELS[c]} borrado`);
+  };
+
+  const borrarTodo = async () => {
+    if (await saveToFirebase({}, [])) notify("🗑️ Todo borrado");
+  };
+
+  const exportCSV = (c) => {
+    const rows = [["Alumno", "Puntos", "Nota", "Victorias", "Derrotas", "Enfrentamientos"]];
+    ranking(c).forEach(a => {
+      rows.push([a.nombre, a.puntos, calcNota(a.puntos, c), a.wins, a.total - a.wins, a.total]);
+    });
+    const csv = rows.map(r => r.join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `notas_duelos_${LABELS[c]}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const tryLogin = () => {
+    if (claveIn === CLAVE) { setProf(true); setShowLogin(false); setClaveIn(""); notify("🔓 Modo profesor"); }
+    else notify("❌ Clave incorrecta");
+  };
+
+  /* ── Datos derivados ── */
+  const pend = pendientes(cl, jug);
+  const totalRiv = alumnos[cl].length - 1;
+  const comp = totalRiv - pend.length;
+  const st = calcStats(cl);
+
+  /* ── Loading ── */
+  if (loading) return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-5xl mb-3 animate-bounce">⚔️</div>
+        <div className="text-indigo-700 font-semibold">Cargando duelos...</div>
+        <div className="text-xs text-gray-400 mt-1">Conectando con Firebase</div>
+      </div>
+    </div>
+  );
+
+  /* ── Vista detalle alumno ── */
+  if (detalle) {
+    const dHist = historial.filter(h => h.clase === cl && h.jugador === detalle);
+    const dPts = getPts(cl, detalle);
+    const dWins = dHist.filter(h => h.victoria).length;
+    const dNota = calcNota(dPts, cl);
+    const dPend = pendientes(cl, detalle);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-100 p-3">
+        <div className="max-w-2xl mx-auto">
+          <Toast msg={toast.msg} visible={toast.visible} />
+          <div className="bg-white rounded-2xl p-5 shadow-lg">
+            <button onClick={() => setDetalle(null)} className="text-indigo-600 text-sm font-medium mb-3 hover:underline">← Volver</button>
+            <h2 className="text-xl font-bold text-gray-900 mb-1">{detalle}</h2>
+            <p className="text-sm text-gray-400 mb-3">{LABELS[cl]}</p>
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">{dPts} pts</span>
+              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-semibold">{dWins}V / {dHist.length - dWins}D</span>
+              <span className={`px-3 py-1 rounded-full text-sm font-bold ${colorNota(dNota)}`}>Nota: {dNota}</span>
+            </div>
+            <h3 className="font-semibold text-gray-700 mb-2 text-sm">Enfrentamientos ({dHist.length}/{totalRiv})</h3>
+            {dHist.length === 0 ? <p className="text-gray-400 text-sm py-3">Sin enfrentamientos aún</p> : (
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {dHist.map(h => (
+                  <div key={h.id} className={`flex items-center justify-between p-2.5 rounded-xl text-sm ${h.victoria ? 'bg-emerald-50' : 'bg-orange-50'}`}>
+                    <div>
+                      <span className={`font-bold mr-2 ${h.victoria ? 'text-emerald-600' : 'text-orange-500'}`}>{h.victoria ? 'V' : 'D'}</span>
+                      <span className="text-gray-700">vs {short(h.rival)}</span>
+                    </div>
+                    <span className="text-gray-400 text-xs">{h.fecha}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <h3 className="font-semibold text-gray-700 mb-2 text-sm mt-4">Pendientes ({dPend.length})</h3>
+            {dPend.length === 0 ? <p className="text-emerald-600 text-sm font-medium">✅ ¡Completado!</p> : (
+              <div className="flex flex-wrap gap-1.5">
+                {dPend.map(p => <span key={p} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs">{short(p)}</span>)}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ══════════════════════════════════════════
+     RENDER PRINCIPAL
+     ══════════════════════════════════════════ */
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-100 p-3">
+      <div className="max-w-2xl mx-auto">
+        <Toast msg={toast.msg} visible={toast.visible} />
+        <Modal open={modal.open} title={modal.title} msg={modal.msg} danger={modal.danger}
+          onConfirm={modal.onConfirm} onClose={() => setModal(m => ({ ...m, open: false }))} />
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-3">
+          <div>
+            <h1 className="text-2xl font-black text-gray-900">⚔️ Duelos de Historia</h1>
+            <p className="text-indigo-500 text-sm font-medium">
+              Tema 6 · {LABELS[cl]}
+              {connected
+                ? <span className="ml-2 text-emerald-500">● Online</span>
+                : <span className="ml-2 text-red-500">● Offline</span>
+              }
+            </p>
+          </div>
+          {!prof ? (
+            <button onClick={() => setShowLogin(!showLogin)} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-gray-400 hover:text-gray-600">🔐</button>
+          ) : (
+            <button onClick={() => setProf(false)} className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-emerald-200">
+              👨‍🏫 Salir
+            </button>
+          )}
+        </div>
+
+        {showLogin && !prof && (
+          <div className="bg-white rounded-xl p-3 mb-3 shadow-lg flex gap-2">
+            <input type="password" placeholder="Clave profesor" value={claveIn} onChange={e => setClaveIn(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && tryLogin()}
+              className="flex-1 p-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-indigo-400 focus:outline-none" />
+            <button onClick={tryLogin} className="bg-indigo-600 text-white px-4 rounded-xl text-sm font-semibold hover:bg-indigo-700">Entrar</button>
+          </div>
+        )}
+
+        {/* Clase */}
+        <div className="flex gap-2 mb-3">
+          {Object.keys(alumnos).map(c => (
+            <button key={c} onClick={() => { setCl(c); setJug(""); setRiv(""); setBusqueda(""); setDetalle(null); }}
+              className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${cl === c ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:text-indigo-600 shadow'}`}>
+              {LABELS[c]}
+            </button>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          {[
+            { l: "Duelos", v: st.total, i: "⚔️" },
+            { l: "Victorias", v: st.wins, i: "🏆" },
+            { l: "Jugadores", v: `${st.jugadores}/${alumnos[cl].length}`, i: "👥" },
+            { l: "Progreso", v: `${st.progreso}%`, i: "📊" },
+          ].map(s => (
+            <div key={s.l} className="bg-white rounded-xl p-2.5 shadow text-center">
+              <div className="text-lg">{s.i}</div>
+              <div className="text-lg font-black text-gray-900">{s.v}</div>
+              <div className="text-xs text-gray-400">{s.l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex mb-3 bg-white rounded-xl p-1 shadow text-xs font-semibold">
+          {[
+            { id: "registro", ic: "📝", lb: "Registrar" },
+            { id: "ranking", ic: "🏆", lb: "Ranking" },
+            { id: "cuadro", ic: "📊", lb: "Cuadro" },
+            { id: "historial", ic: "📋", lb: "Historial" },
+            ...(prof ? [{ id: "notas", ic: "📚", lb: "Notas" }] : [])
+          ].map(t => (
+            <button key={t.id} onClick={() => setVista(t.id)}
+              className={`flex-1 py-2 rounded-lg transition-all ${vista === t.id ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-indigo-600'}`}>
+              {t.ic} {t.lb}
+            </button>
+          ))}
+        </div>
+
+        {/* Teacher controls */}
+        {prof && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 mb-3 flex gap-2 flex-wrap">
+            <button onClick={() => openModal("Recalcular", "¿Recalcular puntos desde historial?", recalc)}
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-xl text-xs font-bold">🔄 Recalcular</button>
+            <button onClick={() => openModal(`Borrar ${LABELS[cl]}`, `¿Borrar TODOS los datos de ${LABELS[cl]}?`, () => borrarClase(cl), true)}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-3 rounded-xl text-xs font-bold">🗑️ Borrar {LABELS[cl]}</button>
+            <button onClick={() => openModal("⚠️ Borrar TODO", "Se perderán TODOS los datos. Irreversible.", borrarTodo, true)}
+              className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-xl text-xs font-bold">⚠️ Todo</button>
+          </div>
+        )}
+
+        {/* ═══ REGISTRO ═══ */}
+        {vista === "registro" && (
+          <div className="bg-white rounded-2xl p-5 shadow-lg">
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Yo soy:</label>
+              <select value={jug} onChange={e => { setJug(e.target.value); setRiv(""); }}
+                className="w-full p-3 border-2 border-gray-200 rounded-xl text-base font-medium focus:border-indigo-400 focus:outline-none bg-white">
+                <option value="">Selecciona tu nombre</option>
+                {alumnos[cl].map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              {jug && (
+                <div className="mt-2.5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3">
+                  <div className="flex justify-between text-indigo-700 text-sm font-semibold mb-1.5">
+                    <span>⚔️ {comp}/{totalRiv}</span>
+                    <span>{pend.length > 0 ? `${pend.length} pendientes` : '¡Completado! 🎉'}</span>
+                  </div>
+                  <div className="w-full bg-indigo-200 rounded-full h-2.5 overflow-hidden">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${(comp / totalRiv) * 100}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Me enfrenté a:</label>
+              <select value={riv} onChange={e => setRiv(e.target.value)} disabled={!jug}
+                className="w-full p-3 border-2 border-gray-200 rounded-xl text-base font-medium focus:border-indigo-400 focus:outline-none bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                <option value="">Selecciona rival</option>
+                {pend.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              {jug && pend.length === 0 && <p className="text-emerald-600 text-sm mt-2 font-semibold">✅ ¡Ya te has enfrentado a todos!</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => registrar(true)} disabled={!jug || !riv}
+                className="py-5 bg-gradient-to-br from-emerald-400 to-emerald-600 disabled:from-gray-200 disabled:to-gray-300 text-white text-xl font-black rounded-2xl shadow-lg active:scale-95 disabled:active:scale-100 disabled:shadow-none disabled:text-gray-400 transition-all">
+                🏆 GANÉ<br /><span className="text-sm font-semibold opacity-80">+3 puntos</span>
+              </button>
+              <button onClick={() => registrar(false)} disabled={!jug || !riv}
+                className="py-5 bg-gradient-to-br from-orange-400 to-orange-600 disabled:from-gray-200 disabled:to-gray-300 text-white text-xl font-black rounded-2xl shadow-lg active:scale-95 disabled:active:scale-100 disabled:shadow-none disabled:text-gray-400 transition-all">
+                😤 PERDÍ<br /><span className="text-sm font-semibold opacity-80">+1 punto</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ RANKING ═══ */}
+        {vista === "ranking" && (
+          <div className="bg-white rounded-2xl p-5 shadow-lg">
+            <h2 className="text-lg font-bold text-gray-900 mb-3">🏆 Ranking {LABELS[cl]}</h2>
+            <input placeholder="🔍 Buscar alumno..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              className="w-full p-2.5 border-2 border-gray-100 rounded-xl text-sm mb-3 focus:border-indigo-300 focus:outline-none" />
+            <div className="space-y-1.5 max-h-96 overflow-y-auto">
+              {ranking(cl).filter(a => a.nombre.toLowerCase().includes(busqueda.toLowerCase())).map((al, i) => {
+                const medal = i === 0 && al.puntos > 0 ? '🥇' : i === 1 && al.puntos > 0 ? '🥈' : i === 2 && al.puntos > 0 ? '🥉' : null;
+                return (
+                  <div key={al.nombre} onClick={() => setDetalle(al.nombre)}
+                    className={`flex items-center p-2.5 rounded-xl cursor-pointer transition-all hover:shadow-md ${medal ? 'bg-gradient-to-r from-indigo-50 to-purple-50' : 'hover:bg-gray-50'}`}>
+                    <span className="w-8 text-center font-bold text-gray-400 text-sm">{medal || `${i + 1}.`}</span>
+                    <div className="flex-1 ml-2">
+                      <div className="text-sm font-semibold text-gray-800">{short(al.nombre)}</div>
+                      <div className="text-xs text-gray-400">{al.wins}V / {al.total - al.wins}D</div>
+                    </div>
+                    <span className={`font-black text-lg ${al.puntos > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{al.puntos}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ CUADRO ═══ */}
+        {vista === "cuadro" && (
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">📊 Cuadro {LABELS[cl]}</h2>
+            <p className="text-xs text-gray-400 mb-3">
+              <span className="inline-block w-4 h-4 rounded bg-emerald-200 align-middle mr-1"></span>Victoria
+              <span className="inline-block w-4 h-4 rounded bg-orange-200 align-middle ml-3 mr-1"></span>Derrota
+            </p>
+            <div className="overflow-auto max-h-96 rounded-xl border border-gray-100" style={{ fontSize: '11px' }}>
+              <table className="border-collapse w-full">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-gray-50 p-1.5 border border-gray-100 text-left font-bold text-gray-600" style={{ minWidth: '90px' }}>Alumno</th>
+                    {alumnos[cl].map((_, i) => (
+                      <th key={i} className="p-1 border border-gray-100 bg-gray-50 text-center font-bold text-gray-500 w-7">{i + 1}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {alumnos[cl].map((alumno, i) => (
+                    <tr key={alumno}>
+                      <td className="sticky left-0 z-10 bg-white p-1.5 border border-gray-100 font-semibold text-gray-700 truncate cursor-pointer hover:text-indigo-600"
+                        style={{ maxWidth: '100px' }} title={alumno} onClick={() => setDetalle(alumno)}>
+                        {i + 1}. {short(alumno)}
+                      </td>
+                      {alumnos[cl].map((r, j) => {
+                        if (i === j) return <td key={j} className="border border-gray-100 bg-gray-200 w-7"></td>;
+                        const res = getRes(cl, alumno, r);
+                        return (
+                          <td key={j} title={`${short(alumno)} vs ${short(r)}`}
+                            className={`border border-gray-100 w-7 text-center font-black ${res ? (res.victoria ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-500') : 'bg-white text-gray-200'}`}>
+                            {res ? (res.victoria ? '✓' : '✗') : '·'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ HISTORIAL ═══ */}
+        {vista === "historial" && (
+          <div className="bg-white rounded-2xl p-5 shadow-lg">
+            <h2 className="text-lg font-bold text-gray-900 mb-3">📋 Historial {LABELS[cl]}</h2>
+            {histClase(cl).length === 0 ? (
+              <div className="text-center py-8"><div className="text-4xl mb-2">🤷</div><p className="text-gray-400">Sin enfrentamientos en {LABELS[cl]}</p></div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {histClase(cl).map(h => (
+                  <div key={h.id} className={`p-3 rounded-xl text-sm flex justify-between items-center ${h.victoria ? 'bg-emerald-50 border border-emerald-100' : 'bg-orange-50 border border-orange-100'}`}>
+                    <div>
+                      <div className="font-semibold text-gray-800">
+                        <span className={`inline-block w-5 text-center mr-1 font-black ${h.victoria ? 'text-emerald-600' : 'text-orange-500'}`}>{h.victoria ? 'V' : 'D'}</span>
+                        {short(h.jugador)} vs {short(h.rival)}
+                      </div>
+                      <div className="text-gray-400 text-xs mt-0.5">{h.fecha} · +{h.puntos} pts</div>
+                    </div>
+                    {prof && (
+                      <button onClick={() => openModal("Borrar registro", `¿Eliminar: ${short(h.jugador)} vs ${short(h.rival)}?`, () => borrarReg(h.id), true)}
+                        className="text-red-300 hover:text-red-500 text-xl px-2 font-bold">×</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ NOTAS ═══ */}
+        {vista === "notas" && prof && (
+          <div className="bg-white rounded-2xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">📚 Notas {LABELS[cl]}</h2>
+                <p className="text-xs text-gray-400">{PUNTOS_MAX[cl]} pts = 10</p>
+              </div>
+              <button onClick={() => exportCSV(cl)} className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-200">
+                📥 CSV
+              </button>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left py-2.5 px-3 font-bold text-gray-600">Alumno</th>
+                    <th className="text-center py-2.5 px-2 w-12 font-bold text-gray-600">V</th>
+                    <th className="text-center py-2.5 px-2 w-12 font-bold text-gray-600">D</th>
+                    <th className="text-center py-2.5 px-2 w-16 font-bold text-gray-600">Pts</th>
+                    <th className="text-center py-2.5 px-2 w-16 font-bold text-gray-600">Nota</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ranking(cl).map(al => {
+                    const n = calcNota(al.puntos, cl);
+                    return (
+                      <tr key={al.nombre} className="border-t border-gray-50 hover:bg-gray-50 cursor-pointer" onClick={() => setDetalle(al.nombre)}>
+                        <td className="py-2 px-3 font-medium text-gray-800">{al.nombre}</td>
+                        <td className="text-center text-emerald-600 font-semibold">{al.wins}</td>
+                        <td className="text-center text-orange-500 font-semibold">{al.total - al.wins}</td>
+                        <td className="text-center">
+                          <span className="text-indigo-600 font-bold">{al.puntos}</span>
+                          <button onClick={(e) => {
+                            e.stopPropagation();
+                            const nv = prompt(`Ajustar puntos de ${al.nombre}:`, al.puntos);
+                            if (nv !== null && !isNaN(parseInt(nv))) ajustarPts(cl, al.nombre, parseInt(nv));
+                          }} className="ml-1 text-gray-300 hover:text-blue-500">✏️</button>
+                        </td>
+                        <td className="text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-lg font-black text-sm ${colorNota(n)}`}>{n}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-gray-300 text-center mt-4">
+          🔥 Firebase Realtime {connected ? '· ● Conectado' : '· ○ Desconectado'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
