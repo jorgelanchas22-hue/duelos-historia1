@@ -94,13 +94,13 @@
 // ===================== CONFIGURACIÓN FIREBASE =====================
 // Sustituye por la config de tu proyecto Firebase (mismo patrón que tus otras apps EF)
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  databaseURL: "https://TU_PROYECTO-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "TU_PROYECTO",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyA8Dr1k7TzEram4OlqO1oYNqu2C_5eZq-0",
+  authDomain: "duelos-historia2eso.firebaseapp.com",
+  databaseURL: "https://duelos-historia2eso-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "duelos-historia2eso",
+  storageBucket: "duelos-historia2eso.firebasestorage.app",
+  messagingSenderId: "527185660099",
+  appId: "1:527185660099:web:fa5be5fa2d89d06175ba76"
 };
 
 const CLAVE_PROFESOR = "triana2027";
@@ -112,9 +112,9 @@ let demoHistorial = [];
 try {
   firebase.initializeApp(firebaseConfig);
   db = firebase.database();
-  firebase.auth().signInAnonymously().catch(() => { demoMode = true; });
 } catch (e) {
   demoMode = true;
+  console.error("Error al iniciar Firebase:", e);
 }
 
 // ===================== DATOS DE ALUMNOS =====================
@@ -173,23 +173,44 @@ let state = {
 function setStatus(txt) { document.getElementById('status').textContent = txt; }
 
 // ===================== CARGA / GUARDADO DE DATOS =====================
+function activarDemo(motivo) {
+  demoMode = true;
+  setStatus('⚠️ Modo demo (' + motivo + ') — revisa reglas/autenticación en Firebase');
+  state.puntos = demoPuntos;
+  state.historial = demoHistorial;
+  render();
+}
+
 function initDataSync() {
   if (demoMode || !db) {
-    setStatus('⚠️ Modo demo (sin conexión a Firebase) — configura firebaseConfig');
-    state.puntos = demoPuntos;
-    state.historial = demoHistorial;
-    render();
+    activarDemo('sin conexión a Firebase');
     return;
   }
-  setStatus('🟢 Conectado — sincronizando en tiempo real');
-  db.ref('duelosHistoria/puntos').on('value', snap => {
-    state.puntos = snap.val() || {};
-    render();
-  });
-  db.ref('duelosHistoria/historial').on('value', snap => {
-    const val = snap.val() || {};
-    state.historial = Object.keys(val).map(k => ({ id: k, ...val[k] })).sort((a, b) => b.ts - a.ts);
-    render();
+
+  setStatus('🔄 Conectando con Firebase...');
+
+  firebase.auth().signInAnonymously().then(() => {
+    setStatus('🟢 Conectado — sincronizando en tiempo real');
+
+    db.ref('duelosHistoria/puntos').on('value', snap => {
+      state.puntos = snap.val() || {};
+      render();
+    }, err => {
+      console.error('Error leyendo puntos:', err);
+      activarDemo('error de permisos: ' + err.message);
+    });
+
+    db.ref('duelosHistoria/historial').on('value', snap => {
+      const val = snap.val() || {};
+      state.historial = Object.keys(val).map(k => ({ id: k, ...val[k] })).sort((a, b) => b.ts - a.ts);
+      render();
+    }, err => {
+      console.error('Error leyendo historial:', err);
+      activarDemo('error de permisos: ' + err.message);
+    });
+  }).catch(err => {
+    console.error('Error de autenticación:', err);
+    activarDemo('activa el inicio de sesión anónimo en Firebase');
   });
 }
 
