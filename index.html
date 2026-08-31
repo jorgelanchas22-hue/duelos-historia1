@@ -79,8 +79,7 @@
   <div class="status" id="status">Conectando...</div>
 
   <div class="login-box" id="loginBox" style="display:none">
-    <input type="password" id="claveInput" placeholder="Clave profesor">
-    <button onclick="verificarClave()">Entrar</button>
+    <button onclick="verificarClave()">🔐 Entrar con Google</button>
   </div>
 
   <div class="clases" id="clasesBar"></div>
@@ -103,7 +102,7 @@ const firebaseConfig = {
   appId: "1:527185660099:web:fa5be5fa2d89d06175ba76"
 };
 
-const CLAVE_PROFESOR = "triana2027";
+const AUTHORIZED_EMAIL = "jorge.lanchas@triana.salesianos.edu";
 let db = null;
 let demoMode = false;
 let demoPuntos = {};
@@ -316,14 +315,24 @@ function registrar(victoria) {
 }
 
 function verificarClave() {
-  const val = document.getElementById('claveInput').value;
-  if (val === CLAVE_PROFESOR) {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt: 'select_account'});
+  mostrarMensaje("Abriendo Google...");
+  firebase.auth().signInWithPopup(provider).then(res => {
+    const email = ((res.user && res.user.email) || '').toLowerCase();
+    if (email !== AUTHORIZED_EMAIL.toLowerCase()) {
+      mostrarMensaje("❌ Esta cuenta no está autorizada");
+      firebase.auth().signOut();
+      render();
+      return;
+    }
     state.modoProfesor = true; state.mostrarLogin = false;
     mostrarMensaje("🔓 Modo profesor activado");
-  } else {
-    mostrarMensaje("❌ Clave incorrecta");
-  }
-  render();
+    render();
+  }).catch(e => {
+    mostrarMensaje(e && e.code === 'auth/popup-closed-by-user' ? "Se cerró la ventana de Google." : "❌ No se pudo iniciar sesión con Google");
+    render();
+  });
 }
 
 // ===================== RENDER =====================
@@ -461,7 +470,7 @@ function renderNotas() {
 function cambiarClase(c) { state.clase = c; state.jugador = ""; state.rival = ""; render(); }
 function cambiarVista(v) { state.vista = v; render(); }
 function toggleLogin() { state.mostrarLogin = !state.mostrarLogin; render(); }
-function salirProfesor() { state.modoProfesor = false; render(); }
+function salirProfesor() { state.modoProfesor = false; firebase.auth().signOut().catch(()=>{}); render(); }
 function setJugador(v) { state.jugador = v; render(); }
 function setRival(v) { state.rival = v; render(); }
 function eliminarRegistroJson(reg) { eliminarRegistro(reg); }
