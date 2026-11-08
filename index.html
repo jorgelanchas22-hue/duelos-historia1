@@ -117,45 +117,18 @@ try {
 }
 
 // ===================== DATOS DE ALUMNOS =====================
-const alumnos = {
-  "2ºA": [
-    "Amaro Porras, Bosco", "Avilés Gallardo, Sofía", "Batista Hidalgo, Rafael Josué",
-    "Carrillo Torvisco, Fernando", "Casado De la Rosa, Daniela", "Company Del Val, Quique",
-    "Cuevas Espí, Manuel", "Ferrer Fernández, Ainara", "García Casado, Ignacio",
-    "García Muñoz, Marcel", "Garzón Delgado, Rubén", "Gavilán Fonseca, Lola",
-    "González Brigidano, Elena", "Herranz Fraile, Javier", "Jiménez De Rueda, María Eugenia",
-    "López López, Emma", "López Solis, Jorge", "Marín Hermosilla, Manuel",
-    "Merro Muñoz, Alejo", "Merro Muñoz, Felipe", "Molina Pacheco, Lola",
-    "Morato Gómez, Alejandro", "Navarro García, Claudia", "Nieto Domínguez, Ignacio",
-    "Pina Fernández, Valeria", "Puelles Moya, Pablo", "Vázquez Sanabria, Irma Patricia",
-    "Vizcarra Oré, Gonzalo Miguel"
-  ],
-  "2ºB": [
-    "Acosta Martel, Kevin", "Alcalá Marroquí, Patricia María", "Campos García, Miriam",
-    "Campos Garrido, Sonia", "Chekroun Murillo, Blanca", "Díaz Suárez, Jesús",
-    "Domínguez Saavedra, Román", "Donlon Schmidt, Michael Joel", "Ferrer Ramírez, Mario",
-    "Gatón Bejar, Manuel", "Gener Amador, María", "González Gutiérrez, Manuel María",
-    "Manzano Galindo, Valentina", "Marcano Domínguez, Marina", "Martínez López, Luis",
-    "Maya Moreno, Marta", "Medrano Cid, Nicolás", "Mendieta Cruz, Jorge",
-    "Mula Pérez-Leiva, Bruno", "Parrón Ruiz, David", "Picazo Goroi, Rubyhn Macarena",
-    "Rastrollo Rodríguez, Miguel Ángel", "Redondo Camacho, María Rocío", "Sánchez Calvillo, Paula",
-    "Sánchez Ogazón, Eusebio Javier", "Simoes Lara, Darío", "Tirado Barranca, Lola",
-    "Vargas Romero, Blanca", "Vera Muñoz-Reja, Beatriz", "Vinces Sánchez, Carmen Noelia"
-  ],
-  "2ºC": [
-    "Balbontín Martínez, Bosco", "Bellido Aranda, Claudia Salud", "Boscán Trocónis, Abrahám José",
-    "Cabello Toscano, Ariadna Stefanía", "De Labra Borrero, Breogan", "Díaz Cruz, Álvaro",
-    "Gordillo Ramos Catalina, Paula", "Jiménez Sánchez, Ángela Paola", "Lamet Correa, Lola",
-    "Lerín Ramírez, Adrián", "Macías Cano, Jesús", "Marchena Jiménez, Jaime",
-    "Martín Delgado, Sergio", "Martínez Álvarez de Cienfuegos, Carmen", "Martínez Sánchez, Martín",
-    "Mateo Arispón, Ainhoa", "Medina Rodríguez, Lucas", "Méndez Delgado, Eric",
-    "Moreno Grove, Irene", "Navarro Pérez, Alba", "Olivencia Martínez, Pilar",
-    "Oribe Ruibérriz de Torres, Elena", "Peralvo De la Rosa, Aitana", "Ponce Liñán, Marcos",
-    "Ramos Martín, Julio", "Soler Martínez, Manuel Antonio", "Uncala Villarán, Julio",
-    "Valiente García, Alejandro", "Zoido Maraver, Francisco Javier"
-  ]
-};
-const PUNTOS_MAXIMOS = { "2ºA": 81, "2ºB": 87, "2ºC": 84 };
+// Las listas ya NO van en el código: se importan desde Google Classroom (modo profesor)
+// y se guardan en Firebase en duelosHistoria/alumnos/{clase}.
+const CLASES = ["2ºA", "2ºB", "2ºC"];
+const CLASSROOM_SCOPES = [
+  'https://www.googleapis.com/auth/classroom.courses.readonly',
+  'https://www.googleapis.com/auth/classroom.rosters.readonly',
+  'https://www.googleapis.com/auth/classroom.profile.emails'
+];
+let alumnos = { "2ºA": [], "2ºB": [], "2ºC": [] };
+let alumnosCargados = false;
+// Máximo = ganar a todos los compañeros (3 pts × nº rivales)
+function puntosMaximos(cl) { return Math.max(3, 3 * ((alumnos[cl] || []).length - 1)); }
 
 // ===================== ESTADO =====================
 let state = {
@@ -166,14 +139,21 @@ let state = {
   historial: [],
   vista: "registro",
   modoProfesor: false,
-  mostrarLogin: false
+  mostrarLogin: false,
+  // importación desde Classroom
+  cursos: null,          // [{id, name, section}]
+  mapa: {},              // { "2ºA": courseId }
+  preview: null,         // { "2ºA": [nombres] }
+  cargandoClassroom: false
 };
+let classroomToken = null;
 
 function setStatus(txt) { document.getElementById('status').textContent = txt; }
 
 // ===================== CARGA / GUARDADO DE DATOS =====================
 function activarDemo(motivo) {
   demoMode = true;
+  alumnosCargados = true;
   setStatus('⚠️ Modo demo (' + motivo + ') — revisa reglas/autenticación en Firebase');
   state.puntos = demoPuntos;
   state.historial = demoHistorial;
@@ -198,6 +178,13 @@ function initDataSync() {
       console.error('Error leyendo puntos:', err);
       activarDemo('error de permisos: ' + err.message);
     });
+
+    db.ref('duelosHistoria/alumnos').on('value', snap => {
+      const val = snap.val() || {};
+      CLASES.forEach(c => { alumnos[c] = Array.isArray(val[c]) ? val[c] : Object.values(val[c] || {}); });
+      alumnosCargados = true;
+      render();
+    }, err => console.error('Error leyendo alumnos:', err));
 
     db.ref('duelosHistoria/historial').on('value', snap => {
       const val = snap.val() || {};
@@ -273,12 +260,12 @@ async function borrarTodo() {
 
 // ===================== LÓGICA =====================
 function getClasificacion(cl) {
-  return alumnos[cl]
+  return (alumnos[cl] || [])
     .map(n => ({ nombre: n, puntos: state.puntos[`${cl}-${n}`] || 0 }))
     .sort((a, b) => b.puntos - a.puntos);
 }
 function calcularNota(pts, cl) {
-  const max = PUNTOS_MAXIMOS[cl];
+  const max = puntosMaximos(cl);
   return Math.min(10, Math.round((pts / max) * 10 * 10) / 10);
 }
 function notaClass(n) {
@@ -339,7 +326,7 @@ function verificarClave() {
 function render() {
   // barra de clases
   const clasesBar = document.getElementById('clasesBar');
-  clasesBar.innerHTML = Object.keys(alumnos).map(c =>
+  clasesBar.innerHTML = CLASES.map(c =>
     `<button class="${state.clase === c ? 'active' : ''}" onclick="cambiarClase('${c}')">${c}</button>`
   ).join('');
 
@@ -349,7 +336,7 @@ function render() {
     { id: 'clasificacion', label: '🏆 Ranking' },
     { id: 'historial', label: '📋 Historial' }
   ];
-  if (state.modoProfesor) tabs.push({ id: 'notas', label: '📊 Notas' });
+  if (state.modoProfesor) { tabs.push({ id: 'notas', label: '📊 Notas' }); tabs.push({ id: 'alumnos', label: '👥 Alumnos' }); }
   document.getElementById('tabsBar').innerHTML = tabs.map(t =>
     `<button class="${state.vista === t.id ? 'active' : ''}" onclick="cambiarVista('${t.id}')">${t.label}</button>`
   ).join('');
@@ -367,9 +354,18 @@ function render() {
   else if (state.vista === 'clasificacion') c.innerHTML = renderClasificacion();
   else if (state.vista === 'historial') c.innerHTML = renderHistorial();
   else if (state.vista === 'notas' && state.modoProfesor) c.innerHTML = renderNotas();
+  else if (state.vista === 'alumnos' && state.modoProfesor) c.innerHTML = renderAlumnos();
+  else { state.vista = 'registro'; c.innerHTML = renderRegistro(); }
+}
+
+function avisoSinLista() {
+  return `<div class="card"><p class="empty">${alumnosCargados
+    ? `📭 Todavía no hay lista de alumnos de ${state.clase}.<br>El profesor tiene que importarla desde Classroom (🔐 → 👥 Alumnos).`
+    : '⏳ Cargando lista de alumnos...'}</p></div>`;
 }
 
 function renderRegistro() {
+  if (!(alumnos[state.clase] || []).length) return avisoSinLista();
   const opciones = alumnos[state.clase].map(a => `<option value="${a}" ${state.jugador === a ? 'selected' : ''}>${a}</option>`).join('');
   const opcionesRival = alumnos[state.clase].filter(a => a !== state.jugador)
     .map(a => `<option value="${a}" ${state.rival === a ? 'selected' : ''}>${a}</option>`).join('');
@@ -391,6 +387,7 @@ function renderRegistro() {
 }
 
 function renderClasificacion() {
+  if (!(alumnos[state.clase] || []).length) return avisoSinLista();
   const lista = getClasificacion(state.clase);
   const filas = lista.map((al, i) => {
     let medal = `${i + 1}.`;
@@ -451,7 +448,7 @@ function renderNotas() {
   return `
     <div class="card">
       <h2>📊 Notas ${state.clase}</h2>
-      <p style="font-size:.75rem;color:#94a3b8;margin-bottom:10px">Máximo ${PUNTOS_MAXIMOS[state.clase]} pts = 10 | ${PUNTOS_MAXIMOS[state.clase] / 2} pts = 5</p>
+      <p style="font-size:.75rem;color:#94a3b8;margin-bottom:10px">Máximo ${puntosMaximos(state.clase)} pts = 10 | ${puntosMaximos(state.clase) / 2} pts = 5</p>
       <table>
         <thead><tr><th>Alumno</th><th style="text-align:center">Pts</th><th style="text-align:center">Nota</th></tr></thead>
         <tbody>${filas}</tbody>
@@ -466,11 +463,158 @@ function renderNotas() {
     </div>`;
 }
 
+// ===================== IMPORTAR DESDE GOOGLE CLASSROOM =====================
+function esc(t) { return String(t).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]); }
+
+async function pedirTokenClassroom() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  CLASSROOM_SCOPES.forEach(sc => provider.addScope(sc));
+  provider.setCustomParameters({ prompt: 'consent', login_hint: AUTHORIZED_EMAIL });
+  const res = await firebase.auth().signInWithPopup(provider);
+  const email = ((res.user && res.user.email) || '').toLowerCase();
+  if (email !== AUTHORIZED_EMAIL.toLowerCase()) { await firebase.auth().signOut(); throw new Error('Cuenta no autorizada'); }
+  classroomToken = res.credential && res.credential.accessToken;
+  if (!classroomToken) throw new Error('Google no devolvió permiso para Classroom');
+}
+
+async function classroomGet(path) {
+  const r = await fetch('https://classroom.googleapis.com/v1/' + path, { headers: { Authorization: 'Bearer ' + classroomToken } });
+  if (r.status === 401) { classroomToken = null; throw new Error('Sesión de Classroom caducada, vuelve a conectar'); }
+  if (!r.ok) {
+    let msg = r.status + '';
+    try { const j = await r.json(); msg = (j.error && j.error.message) || msg; } catch (e) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+async function classroomGetAll(path, campo) {
+  let out = [], token = '';
+  do {
+    const sep = path.includes('?') ? '&' : '?';
+    const j = await classroomGet(path + sep + 'pageSize=100' + (token ? '&pageToken=' + encodeURIComponent(token) : ''));
+    out = out.concat(j[campo] || []);
+    token = j.nextPageToken || '';
+  } while (token);
+  return out;
+}
+
+function adivinarCurso(cursos, clase) {
+  const letra = clase.slice(-1);
+  const norm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const reLetra = new RegExp('(^|[^A-Z])' + letra + '([^A-Z]|$)');
+  const candidatos = cursos.filter(c => {
+    const t = norm(c.name + ' ' + (c.section || ''));
+    return /2/.test(t) && reLetra.test(t.replace(/\bE\b/g, ' '));
+  });
+  const geh = candidatos.find(c => /GEOGRAF|HISTORIA|GEH|GH/.test(norm(c.name + ' ' + (c.section || ''))));
+  return (geh || candidatos[0] || {}).id || '';
+}
+
+async function conectarClassroom() {
+  state.cargandoClassroom = true; render();
+  try {
+    if (!classroomToken) await pedirTokenClassroom();
+    const cursos = await classroomGetAll('courses?teacherId=me&courseStates=ACTIVE', 'courses');
+    state.cursos = cursos.map(c => ({ id: c.id, name: c.name, section: c.section || '' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    CLASES.forEach(cl => { if (!state.mapa[cl]) state.mapa[cl] = adivinarCurso(state.cursos, cl); });
+    if (!state.cursos.length) mostrarMensaje('No se encontraron clases activas en Classroom');
+  } catch (e) {
+    console.error(e);
+    mostrarMensaje('❌ Classroom: ' + e.message);
+  }
+  state.cargandoClassroom = false; render();
+}
+
+function nombreDesdePerfil(p) {
+  const n = (p && p.name) || {};
+  const ap = (n.familyName || '').trim(), no = (n.givenName || '').trim();
+  return ap && no ? `${ap}, ${no}` : (n.fullName || '').trim();
+}
+
+async function leerAlumnosClassroom() {
+  state.cargandoClassroom = true; render();
+  try {
+    const prev = {};
+    for (const cl of CLASES) {
+      const id = state.mapa[cl];
+      if (!id) continue;
+      const st = await classroomGetAll(`courses/${id}/students`, 'students');
+      prev[cl] = [...new Set(st.map(s => nombreDesdePerfil(s.profile)).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'es'));
+    }
+    state.preview = prev;
+  } catch (e) {
+    console.error(e);
+    mostrarMensaje('❌ Classroom: ' + e.message);
+  }
+  state.cargandoClassroom = false; render();
+}
+
+async function guardarAlumnos() {
+  if (!state.preview) return;
+  const updates = {};
+  Object.keys(state.preview).forEach(cl => { updates[cl] = state.preview[cl]; });
+  if (demoMode || !db) {
+    Object.assign(alumnos, updates); alumnosCargados = true;
+  } else {
+    try { await db.ref('duelosHistoria/alumnos').update(updates); }
+    catch (e) { mostrarMensaje('❌ No se pudo guardar: ' + e.message); return; }
+  }
+  state.preview = null;
+  mostrarMensaje('✅ Listas actualizadas desde Classroom');
+  render();
+}
+
+function setMapa(cl, id) { state.mapa[cl] = id; state.preview = null; render(); }
+function cancelarPreview() { state.preview = null; render(); }
+
+function renderAlumnos() {
+  const resumen = CLASES.map(cl => `<tr><td><strong>${cl}</strong></td><td style="text-align:center">${(alumnos[cl] || []).length}</td><td style="text-align:center">${puntosMaximos(cl)}</td></tr>`).join('');
+  let bloque = '';
+  if (state.cargandoClassroom) {
+    bloque = `<p class="empty">⏳ Conectando con Classroom...</p>`;
+  } else if (!state.cursos) {
+    bloque = `<button class="win" style="width:100%;background:#4f46e5" onclick="conectarClassroom()">📥 Conectar con Google Classroom<small>Lee tus clases y la lista de alumnos</small></button>`;
+  } else if (!state.preview) {
+    const sel = cl => `<label>${cl}</label><select onchange="setMapa('${cl}', this.value)">
+        <option value="">-- No importar --</option>
+        ${state.cursos.map(c => `<option value="${esc(c.id)}" ${state.mapa[cl] === c.id ? 'selected' : ''}>${esc(c.name)}${c.section ? ' · ' + esc(c.section) : ''}</option>`).join('')}
+      </select>`;
+    bloque = `<p style="font-size:.8rem;color:#64748b;margin-bottom:10px">Elige qué clase de Classroom corresponde a cada grupo:</p>
+      ${CLASES.map(sel).join('')}
+      <button class="win" style="width:100%;background:#4f46e5" onclick="leerAlumnosClassroom()">👀 Ver alumnos antes de guardar</button>`;
+  } else {
+    const grupos = Object.keys(state.preview).map(cl => {
+      const nuevos = state.preview[cl];
+      const conPuntos = (alumnos[cl] || []).filter(n => !nuevos.includes(n) && (state.puntos[`${cl}-${n}`] || 0) > 0);
+      return `<h2 style="margin-top:10px">${cl} · ${nuevos.length} alumnos</h2>
+        <div style="font-size:.8rem;color:#475569;max-height:160px;overflow-y:auto;background:#f8fafc;border-radius:8px;padding:8px">${nuevos.map(esc).join('<br>') || '<em>Sin alumnos</em>'}</div>
+        ${conPuntos.length ? `<p style="font-size:.75rem;color:#dc2626;margin-top:6px">⚠️ Tienen puntos y no aparecen en Classroom (sus puntos se conservan pero dejarán de verse): ${conPuntos.map(esc).join('; ')}</p>` : ''}`;
+    }).join('');
+    bloque = `${grupos}
+      <div class="grid2" style="margin-top:14px">
+        <button class="win" onclick="guardarAlumnos()">💾 Guardar listas</button>
+        <button class="lose" style="background:#94a3b8" onclick="cancelarPreview()">Cancelar</button>
+      </div>`;
+  }
+  return `
+    <div class="card">
+      <h2>👥 Alumnos (desde Classroom)</h2>
+      <table style="margin-bottom:14px">
+        <thead><tr><th>Grupo</th><th style="text-align:center">Alumnos</th><th style="text-align:center">Pts máx.</th></tr></thead>
+        <tbody>${resumen}</tbody>
+      </table>
+      ${bloque}
+    </div>`;
+}
+
 // ===================== HANDLERS GLOBALES =====================
 function cambiarClase(c) { state.clase = c; state.jugador = ""; state.rival = ""; render(); }
 function cambiarVista(v) { state.vista = v; render(); }
 function toggleLogin() { state.mostrarLogin = !state.mostrarLogin; render(); }
-function salirProfesor() { state.modoProfesor = false; firebase.auth().signOut().catch(()=>{}); render(); }
+function salirProfesor() { state.modoProfesor = false; classroomToken = null; state.cursos = null; state.preview = null; if (state.vista === 'alumnos' || state.vista === 'notas') state.vista = 'registro'; firebase.auth().signOut().catch(()=>{}); render(); }
 function setJugador(v) { state.jugador = v; render(); }
 function setRival(v) { state.rival = v; render(); }
 function eliminarRegistroJson(reg) { eliminarRegistro(reg); }
