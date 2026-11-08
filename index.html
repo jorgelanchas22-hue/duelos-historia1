@@ -63,6 +63,13 @@
   .escala span { display: inline-block; padding: 3px 8px; border-radius: 6px; margin: 2px; }
   .footer { text-align: center; color: #94a3b8; font-size: .75rem; margin-top: 16px; }
   .empty { text-align: center; color: #94a3b8; padding: 20px; }
+  .aviso { background: #fef9c3; border: 2px solid #facc15; border-radius: 12px; padding: 10px; margin-bottom: 14px; font-size: .88rem; color: #713f12; }
+  .aviso + .aviso { margin-top: -6px; }
+  .aviso button { margin-top: 8px; width: 100%; padding: 10px; border: none; border-radius: 8px; font-weight: 700; color: #fff; cursor: pointer; }
+  .info { background: #eef2ff; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: .85rem; color: #3730a3; }
+  .info summary { font-weight: 700; cursor: pointer; }
+  .info ol { margin: 8px 0 2px 18px; line-height: 1.45; }
+  .info li { margin-bottom: 4px; }
   .status { font-size: .7rem; text-align: center; color: #94a3b8; margin-bottom: 8px; }
 </style>
 </head>
@@ -138,6 +145,7 @@ let state = {
   puntos: {},
   historial: [],
   vista: "registro",
+  infoAbierta: true,
   modoProfesor: false,
   mostrarLogin: false,
   // importación desde Classroom
@@ -282,9 +290,49 @@ function mostrarMensaje(txt) {
   window._msgTimeout = setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
-function registrar(victoria) {
+// "Kevin Acosta" a partir de "Acosta Martel, Kevin"
+function corto(n) {
+  const [ap, no] = String(n).split(',').map(t => (t || '').trim());
+  return no ? `${no.split(' ')[0]} ${ap.split(' ')[0]}` : ap;
+}
+
+// Duelos que otros compañeros han registrado CONTRA este alumno (últimas 12 h)
+// y que él todavía no ha anotado por su parte.
+const VENTANA_AVISO = 12 * 60 * 60 * 1000;
+function duelosPendientes(jugador, clase) {
+  if (!jugador) return [];
+  const desde = Date.now() - VENTANA_AVISO;
+  const recientes = state.historial.filter(h => h.clase === clase && (h.ts || 0) >= desde);
+  const contraMi = recientes.filter(h => h.rival === jugador).sort((a, b) => a.ts - b.ts);
+  const mios = recientes.filter(h => h.jugador === jugador);
+  const usados = new Set();
+  return contraMi.filter(h => {
+    // se empareja con un registro mío contra ese mismo compañero
+    const m = mios.find(x => x.rival === h.jugador && !usados.has(x.id));
+    if (m) { usados.add(m.id); return false; }
+    return true;
+  });
+}
+
+function anotarPendiente(id) {
+  const h = state.historial.find(x => x.id === id);
+  if (!h) return;
+  state.rival = h.jugador;
+  registrar(h.resultado !== 'Victoria', true);
+}
+
+function registrar(victoria, desdeAviso) {
   if (!state.jugador || !state.rival) { mostrarMensaje("⚠️ Selecciona tu nombre y rival"); return; }
   if (state.jugador === state.rival) { mostrarMensaje("⚠️ No puedes enfrentarte a ti mismo"); return; }
+  if (!desdeAviso) {
+    const previo = duelosPendientes(state.jugador, state.clase).find(h => h.jugador === state.rival);
+    if (previo && (previo.resultado === 'Victoria') === victoria) {
+      const txt = victoria
+        ? `⚠️ ${corto(state.rival)} ya registró que GANÓ él este duelo.\n\n¿Seguro que ganaste tú? (Si es un error, avisad al profesor)`
+        : `⚠️ ${corto(state.rival)} ya registró que PERDIÓ él este duelo, así que ganaste tú.\n\n¿Seguro que quieres anotar PERDÍ?`;
+      if (!confirm(txt)) return;
+    }
+  }
   const pts = victoria ? 3 : 1;
   const entry = {
     fecha: new Date().toLocaleString('es-ES'),
@@ -369,12 +417,35 @@ function renderRegistro() {
   const opciones = alumnos[state.clase].map(a => `<option value="${a}" ${state.jugador === a ? 'selected' : ''}>${a}</option>`).join('');
   const opcionesRival = alumnos[state.clase].filter(a => a !== state.jugador)
     .map(a => `<option value="${a}" ${state.rival === a ? 'selected' : ''}>${a}</option>`).join('');
-  return `
+  const avisos = duelosPendientes(state.jugador, state.clase).map(h => {
+    const ganoEl = h.resultado === 'Victoria';
+    const hora = new Date(h.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="aviso">
+        📣 <strong>${esc(corto(h.jugador))}</strong> ya ha registrado vuestro duelo (${hora}):
+        dice que <strong>${ganoEl ? 'ganó él' : 'ganaste tú'}</strong>.
+        <button style="background:${ganoEl ? '#f97316' : '#22c55e'}" onclick="anotarPendiente('${esc(h.id)}')">
+          ${ganoEl ? '😤 Anotar mi PERDÍ (+1)' : '🏆 Anotar mi GANÉ (+3)'}
+        </button>
+      </div>`;
+  }).join('');
+  const info = `
+    <details class="info" ${state.infoAbierta ? 'open' : ''} ontoggle="state.infoAbierta=this.open">
+      <summary>ℹ️ ¿Cómo se anota un duelo?</summary>
+      <ol>
+        <li>Cada uno anota <strong>solo su resultado</strong>: quien gana pulsa <strong>🏆 GANÉ (+3)</strong> y quien pierde <strong>😤 PERDÍ (+1)</strong>.</li>
+        <li>Elige <strong>tu nombre</strong> y el de <strong>tu rival</strong>, y pulsa tu botón.</li>
+        <li>Si tu compañero ya lo ha anotado, te saldrá un <strong>aviso amarillo 📣</strong> con lo que puso. Si estás de acuerdo, pulsa el botón del aviso y listo.</li>
+        <li>Si no estáis de acuerdo (los dos decís que ganasteis), la app te avisará: <strong>no lo anotes y díselo al profesor</strong>.</li>
+        <li>Nunca anotes con el nombre de otro compañero. El profesor revisa el historial.</li>
+      </ol>
+    </details>`;
+  return `${info}
     <div class="card">
       <label>Yo soy:</label>
       <select onchange="setJugador(this.value)">
         <option value="">-- Selecciona tu nombre --</option>${opciones}
       </select>
+      ${avisos}
       <label>Me enfrenté a:</label>
       <select onchange="setRival(this.value)">
         <option value="">-- Selecciona rival --</option>${opcionesRival}
